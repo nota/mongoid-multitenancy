@@ -1,5 +1,6 @@
 module Mongoid
   module Multitenancy
-    VERSION = "0.4.2"
+    # Version
+    VERSION = '1.1.2'
   end
 end

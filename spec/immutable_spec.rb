@@ -1,33 +1,45 @@
 require 'spec_helper'
 
 describe Immutable do
+  let(:client) do
+    Account.create!(name: 'client')
+  end
 
-  it_behaves_like "a tenantable model"
+  let(:another_client) do
+    Account.create!(name: 'another client')
+  end
 
-  let(:client) { Account.create!(:name => "client") }
-  let(:another_client) { Account.create!(:name => "another client") }
+  let(:item) do
+    Immutable.new(title: 'title X', slug: 'page-x')
+  end
 
-  describe "#valid?" do
-    before { Mongoid::Multitenancy.current_tenant = client; }
-    after { Mongoid::Multitenancy.current_tenant = nil }
+  it_behaves_like 'a tenantable model'
 
-    let(:item) { Immutable.new(:title => "title X", :slug => "page-x") }
+  describe '#valid?' do
+    before do
+      Mongoid::Multitenancy.current_tenant = client
+    end
 
-    it_behaves_like "a tenant validator"
+    context 'when the tenant has not changed' do
+      before do
+        item.save!
+      end
 
-    context "when the tenant has not changed" do
-      before { item.save! }
-      it 'should be valid' do
-        item.title = "title X (2)"
-        item.should be_valid
+      it 'is valid' do
+        item.title = 'title X (2)'
+        expect(item).to be_valid
       end
     end
 
-    context "when the tenant has changed" do
-      before { item.save!; Mongoid::Multitenancy.current_tenant = another_client }
-      it 'should not be valid' do
+    context 'when the tenant has changed' do
+      before do
+        item.save!
+        Mongoid::Multitenancy.current_tenant = another_client
+      end
+
+      it 'is not valid' do
         item.client = another_client
-        item.should_not be_valid
+        expect(item).not_to be_valid
       end
     end
   end

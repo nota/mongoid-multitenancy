@@ -4,41 +4,150 @@ module Mongoid
       extend ActiveSupport::Concern
 
       module ClassMethods
-        attr_accessor :tenant_field, :full_indexes
+        attr_accessor :tenant_field, :tenant_options
 
+        # List of authorized options
+        MULTITENANCY_OPTIONS = [:optional, :immutable, :full_indexes, :index]
+
+        # Defines the tenant field for the document.
+        #
+        # @example Define a tenant.
+        #   tenant :client, optional: false, immutable: true, full_indexes: true
+        #
+        # @param [ Symbol ] name The name of the relation.
+        # @param [ Hash ] options The relation options.
+        #   All the belongs_to options are allowed plus the following ones:
+        #
+        # @option options [ Boolean ] :full_indexes If true the tenant field
+        #   will be added for each index.
+        # @option options [ Boolean ] :immutable If true changing the tenant
+        #   wil raise an Exception.
+        # @option options [ Boolean ] :optional If true allow the document
+        #   to be shared among all the tenants.
+        #
+        # @return [ Field ] The generated field
         def tenant(association = :account, options = {})
-          options = { full_indexes: true }.merge(options)
-          active_model_options = options.clone
-          to_index = active_model_options.delete(:index)
-          tenant_options = { optional: active_model_options.delete(:optional), immutable: active_model_options.delete(:immutable) { true } }
-          self.full_indexes = active_model_options.delete(:full_indexes)
+          options = { full_indexes: true, immutable: true }.merge!(options)
+          assoc_options, multitenant_options = build_options(options)
 
           # Setup the association between the class and the tenant class
-          belongs_to association, active_model_options
+          belongs_to association, assoc_options
 
           # Get the tenant model and its foreign key
-          tenant_field = reflect_on_association(association).foreign_key
-          self.tenant_field = tenant_field
+          self.tenant_field = reflect_on_association(association).foreign_key.to_sym
+          self.tenant_options = multitenant_options
 
           # Validates the tenant field
-          validates tenant_field, tenant: tenant_options, if: lambda { Multitenancy.current_tenant }
+          validates_tenancy_of tenant_field, multitenant_options, if: lambda { Multitenancy.current_tenant }
 
-          # Set the current_tenant on newly created objects
-          before_validation lambda { |m|
-            if Multitenancy.current_tenant and !tenant_options[:optional] and m.send(association.to_sym).nil?
-              m.send "#{association}=".to_sym, Multitenancy.current_tenant
+          define_scopes
+          define_initializer association
+          define_inherited association, options
+          define_index if multitenant_options[:index]
+        end
+
+        # Validates whether or not a field is unique against the documents in the
+        # database.
+        #
+        # @example
+        #
+        #   class Person
+        #     include Mongoid::Document
+        #     include Mongoid::Multitenancy::Document
+        #     field :title
+        #
+        #     validates_tenant_uniqueness_of :title
+        #   end
+        #
+        # @param [ Array ] *args The arguments to pass to the validator.
+        def validates_tenant_uniqueness_of(*args)
+          validates_with(TenantUniquenessValidator, _merge_attributes(args))
+        end
+
+        # Validates whether or not a tenant field is correct.
+        #
+        # @example Define the tenant validator
+        #
+        #   class Person
+        #     include Mongoid::Document
+        #     include Mongoid::Multitenancy::Document
+        #     field :title
+        #     tenant :client
+        #
+        #     validates_tenant_of :client
+        #   end
+        #
+        # @param [ Array ] *args The arguments to pass to the validator.
+        def validates_tenancy_of(*args)
+          validates_with(TenancyValidator, _merge_attributes(args))
+        end
+
+        # Redefine 'index' to include the tenant field in first position
+        def index(spec, options = nil)
+          if tenant_options[:full_indexes]
+            spec = { tenant_field => 1 }.merge(spec)
+          end
+
+          super(spec, options)
+        end
+
+        # Redefine 'delete_all' to take in account the default scope
+        def delete_all(conditions = nil)
+          scoped.where(conditions).delete
+        end
+
+        private
+
+        # @private
+        def build_options(options)
+          assoc_options = {}
+          multitenant_options = {}
+
+          options.each do |k, v|
+            if MULTITENANCY_OPTIONS.include?(k)
+              multitenant_options[k] = v
+            else
+              assoc_options[k] = v
             end
-            true
-          }
+          end
 
+          [assoc_options, multitenant_options]
+        end
+
+        # @private
+        #
+        # Define the after_initialize
+        def define_initializer(association)
+          # Apply the default value when the default scope is complex (optional tenant)
+          after_initialize lambda {
+            if Multitenancy.current_tenant && send(association.to_sym).nil? && new_record?
+              send "#{association}=".to_sym, Multitenancy.current_tenant
+            end
+          }
+        end
+
+        # @private
+        #
+        # Define the inherited method
+        def define_inherited(association, options)
+          define_singleton_method(:inherited) do |child|
+            child.tenant association, options
+            super(child)
+          end
+        end
+
+        # @private
+        #
+        # Define the scopes
+        def define_scopes
           # Set the default_scope to scope to current tenant
           default_scope lambda {
-            criteria = if Multitenancy.current_tenant
+            if Multitenancy.current_tenant
+              tenant_id = Multitenancy.current_tenant.id
               if tenant_options[:optional]
-                #any_of({ self.tenant_field => Multitenancy.current_tenant.id }, { self.tenant_field => nil })
-                where({ tenant_field.to_sym.in => [Multitenancy.current_tenant.id, nil] })
+                where(tenant_field.in => [tenant_id, nil])
               else
-                where({ tenant_field => Multitenancy.current_tenant.id })
+                where(tenant_field => tenant_id)
               end
             else
               if tenant_options[:optional]
@@ -49,39 +158,15 @@ module Mongoid
             end
           }
 
-          self.define_singleton_method(:inherited) do |child|
-            child.tenant association, options
-            super(child)
-          end
-
-          if to_index
-            index({self.tenant_field => 1}, { background: true, sparse: true })
-          end
+          scope :shared, -> { where(tenant_field => nil) }
+          scope :unshared, -> { where(tenant_field => Multitenancy.current_tenant.id) }
         end
 
-        # Redefine 'validates_with' to add the tenant scope when using a UniquenessValidator
-        def validates_with(*args, &block)
-          validator = if Mongoid::Multitenancy.mongoid4?
-            Validatable::UniquenessValidator
-          else
-            Validations::UniquenessValidator
-          end
-
-          if args.first.ancestors.include?(validator)
-            args.last[:scope] = Array(args.last[:scope]) << self.tenant_field
-          end
-          super(*args, &block)
-        end
-
-        # Redefine 'index' to include the tenant field in first position
-        def index(spec, options = nil)
-          spec = { self.tenant_field => 1 }.merge(spec) if self.full_indexes
-          super(spec, options)
-        end
-
-        # Redefine 'delete_all' to take in account the default scope
-        def delete_all(conditions = nil)
-          scoped.where(conditions).delete
+        # @private
+        #
+        # Create the index
+        def define_index
+          index({ tenant_field => 1 }, background: true, sparse: true)
         end
       end
     end

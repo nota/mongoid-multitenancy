@@ -1,16 +1,12 @@
-require "mongoid"
-require "mongoid/multitenancy/document"
-require "mongoid/multitenancy/version"
-require "mongoid/validators/tenant_validator"
+require 'mongoid'
+require 'mongoid/multitenancy/document'
+require 'mongoid/multitenancy/version'
+require 'mongoid/multitenancy/validators/tenancy'
+require 'mongoid/multitenancy/validators/tenant_uniqueness'
 
 module Mongoid
   module Multitenancy
     class << self
-
-      # Returns true if using Mongoid 4
-      def mongoid4?
-        Mongoid::VERSION.start_with? '4'
-      end
 
       # Set the current tenant. Make it Thread aware
       def current_tenant=(tenant)
@@ -24,16 +20,13 @@ module Mongoid
 
       # Affects a tenant temporary for a block execution
       def with_tenant(tenant, &block)
-        if block.nil?
-          raise ArgumentError, "block required"
-        end
+        raise ArgumentError, 'block required' if block.nil?
 
         old_tenant = self.current_tenant
         self.current_tenant = tenant
-
-        block.call
-
+        result = block.call
         self.current_tenant = old_tenant
+        result
       end
     end
   end

@@ -2,82 +2,206 @@ require 'spec_helper'
 
 describe Optional do
 
-  it_behaves_like "a tenantable model"
+  let(:client) do
+    Account.create!(name: 'client')
+  end
 
-  let(:client) { Account.create!(:name => "client") }
-  let(:another_client) { Account.create!(:name => "another client") }
+  let(:another_client) do
+    Account.create!(name: 'another client')
+  end
 
-  describe ".default_scope" do
-    before {
-      @itemC = Optional.create!(:title => "title C", :slug => "article-c")
-      Mongoid::Multitenancy.with_tenant(client) { @itemX = Optional.create!(:title => "title X", :slug => "article-x", :client => client) }
-      Mongoid::Multitenancy.with_tenant(another_client) { @itemY = Optional.create!(:title => "title Y", :slug => "article-y", :client => another_client) }
-    }
+  let(:item) do
+    Optional.new(title: 'title X', slug: 'page-x')
+  end
 
-    context "with a current tenant" do
-      before { Mongoid::Multitenancy.current_tenant = another_client }
-      after { Mongoid::Multitenancy.current_tenant = nil }
+  it_behaves_like 'a tenantable model'
+  it { is_expected.to validate_tenant_uniqueness_of(:slug) }
 
-      it "should filter on the current tenant / free-tenant items" do
-        Optional.all.to_a.should =~ [@itemY, @itemC]
+  describe '#initialize' do
+    context 'within a client context' do
+      before do
+        Mongoid::Multitenancy.current_tenant = client
       end
-    end
 
-    context "without a current tenant" do
-      before { Mongoid::Multitenancy.current_tenant = nil }
+      context 'when persisted' do
+        before do
+          item.client = nil
+          item.save!
+        end
 
-      it "should not filter on any tenant" do
-        Optional.all.to_a.should =~ [@itemC, @itemX, @itemY]
+        it 'does not override the client' do
+          item.reload
+          expect(Optional.last.client).to be_nil
+        end
       end
     end
   end
 
-  describe "#delete_all" do
-    before {
-      @itemC = Optional.create!(:title => "title C", :slug => "article-c")
-      Mongoid::Multitenancy.with_tenant(client) { @itemX = Optional.create!(:title => "title X", :slug => "article-x", :client => client) }
-      Mongoid::Multitenancy.with_tenant(another_client) { @itemY = Optional.create!(:title => "title Y", :slug => "article-y", :client => another_client) }
-    }
-
-    context "with a current tenant" do
-      it "should only delete the current tenant / free-tenant items" do
-        Mongoid::Multitenancy.with_tenant(another_client) { Optional.delete_all }
-        Optional.all.to_a.should =~ [@itemX]
+  describe '.default_scope' do
+    let!(:item_a) do
+      Mongoid::Multitenancy.with_tenant(client) do
+        Optional.create!(title: 'title A', slug: 'article-a')
       end
     end
 
-    context "without a current tenant" do
-      it "should delete all the pages" do
+    let!(:item_b) do
+      Mongoid::Multitenancy.with_tenant(another_client) do
+        Optional.create!(title: 'title B', slug: 'article-b')
+      end
+    end
+
+    let!(:shared_item) do
+      Optional.create!(title: 'title C', slug: 'article-c')
+    end
+
+    context 'with a current tenant' do
+      it 'filters on the current tenant / free-tenant items' do
+        Mongoid::Multitenancy.with_tenant(another_client) do
+          expect(Optional.all.to_a).to match_array [shared_item, item_b]
+        end
+      end
+    end
+
+    context 'without a current tenant' do
+      it 'does not filter on any tenant' do
+        expect(Optional.all.to_a).to match_array [item_a, item_b, shared_item]
+      end
+    end
+  end
+
+  describe '.shared' do
+    let!(:item_a) do
+      Mongoid::Multitenancy.with_tenant(client) do
+        Optional.create!(title: 'title A', slug: 'article-a')
+      end
+    end
+
+    let!(:item_b) do
+      Mongoid::Multitenancy.with_tenant(another_client) do
+        Optional.create!(title: 'title B', slug: 'article-b')
+      end
+    end
+
+    let!(:shared_item) do
+      Optional.create!(title: 'title C', slug: 'article-c')
+    end
+
+    it 'returns only the shared items' do
+      Mongoid::Multitenancy.with_tenant(another_client) do
+        expect(Optional.shared.to_a).to match_array [shared_item]
+      end
+    end
+  end
+
+  describe '.unshared' do
+    let!(:item_a) do
+      Mongoid::Multitenancy.with_tenant(client) do
+        Optional.create!(title: 'title A', slug: 'article-a')
+      end
+    end
+
+    let!(:item_b) do
+      Mongoid::Multitenancy.with_tenant(another_client) do
+        Optional.create!(title: 'title B', slug: 'article-b')
+      end
+    end
+
+    let!(:shared_item) do
+      Optional.create!(title: 'title C', slug: 'article-c')
+    end
+
+    it 'returns only the shared items' do
+      Mongoid::Multitenancy.with_tenant(another_client) do
+        expect(Optional.unshared.to_a).to match_array [item_b]
+      end
+    end
+  end
+
+  describe '#delete_all' do
+    let!(:item_a) do
+      Mongoid::Multitenancy.with_tenant(client) do
+        Optional.create!(title: 'title A', slug: 'article-a')
+      end
+    end
+
+    let!(:item_b) do
+      Mongoid::Multitenancy.with_tenant(another_client) do
+        Optional.create!(title: 'title B', slug: 'article-b')
+      end
+    end
+
+    let!(:shared_item) do
+      Optional.create!(title: 'title C', slug: 'article-c')
+    end
+
+    context 'with a current tenant' do
+      it 'only deletes the current tenant / free-tenant items' do
+        Mongoid::Multitenancy.with_tenant(another_client) do
+          Optional.delete_all
+        end
+
+        expect(Optional.all.to_a).to match_array [item_a]
+      end
+    end
+
+    context 'without a current tenant' do
+      it 'deletes all the pages' do
         Optional.delete_all
-        Optional.all.to_a.should be_empty
+        expect(Optional.all.to_a).to be_empty
       end
     end
   end
 
-  describe "#valid?" do
-    after { Mongoid::Multitenancy.current_tenant = nil }
+  describe '#valid?' do
+    context 'with a tenant' do
+      before do
+        Mongoid::Multitenancy.current_tenant = client
+      end
 
-    let(:item) { Optional.new(:title => "title X", :slug => "page-x") }
+      it 'is valid' do
+        expect(item).to be_valid
+      end
 
-    it_behaves_like "a tenant validator"
+      context 'with a uniqueness constraint' do
+        let(:duplicate) do
+          Optional.new(title: 'title Y', slug: 'page-x')
+        end
 
-    context "with a current tenant" do
-      before { Mongoid::Multitenancy.current_tenant = client }
+        before do
+          item.save!
+        end
 
-      it "should not set the client field" do
-        item.valid?
-        item.client.should be_nil
+        it 'does not allow duplicates on the same tenant' do
+          expect(duplicate).not_to be_valid
+        end
+
+        it 'allow duplicates on a different same tenant' do
+          Mongoid::Multitenancy.with_tenant(another_client) do
+            expect(duplicate).to be_valid
+          end
+        end
       end
     end
 
-    context "without a current tenant" do
-      it "should not set the client field" do
-        item.valid?
-        item.client.should be_nil
+    context 'without a tenant' do
+      it 'is valid' do
+        expect(item).to be_valid
       end
 
-      it "should be valid" do
-        item.should be_valid
+      context 'with a uniqueness constraint' do
+        let(:duplicate) do
+          Optional.new(title: 'title Y', slug: 'page-x')
+        end
+
+        before do
+          item.save!
+        end
+
+        it 'does not allow duplicates on any client' do
+          Mongoid::Multitenancy.with_tenant(client) do
+            expect(duplicate).not_to be_valid
+          end
+        end
       end
     end
   end
