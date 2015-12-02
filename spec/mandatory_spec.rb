@@ -39,7 +39,7 @@ describe Mandatory do
       end
 
       it 'does not filter on any tenant' do
-        expect(Mandatory.all.to_a).to match_array [@itemX, @itemY]
+        expect(Mandatory.unscoped.all.to_a).to match_array [@itemX, @itemY]
       end
     end
   end
@@ -53,7 +53,7 @@ describe Mandatory do
     context 'with a current tenant' do
       it 'only deletes the current tenant' do
         Mongoid::Multitenancy.with_tenant(another_client) { Mandatory.delete_all }
-        expect(Mandatory.all.to_a).to match_array [@itemX]
+        expect(Mandatory.unscoped.all.to_a).to match_array [@itemX]
       end
     end
 
