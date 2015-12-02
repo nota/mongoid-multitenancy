@@ -38,7 +38,7 @@ module Mongoid
           self.tenant_options = multitenant_options
 
           # Validates the tenant field
-          validates_tenancy_of tenant_field, multitenant_options, if: lambda { Multitenancy.current_tenant }
+          validates_tenancy_of tenant_field, multitenant_options.merge(if: lambda { Multitenancy.current_tenant })
 
           define_scopes
           define_initializer association
