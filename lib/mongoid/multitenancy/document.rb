@@ -31,7 +31,7 @@ module Mongoid
           assoc_options, multitenant_options = build_options(options)
 
           # Setup the association between the class and the tenant class
-          belongs_to association, assoc_options
+          belongs_to association, assoc_options.merge(optional: true)
 
           # Get the tenant model and its foreign key
           self.tenant_field = reflect_on_association(association).foreign_key.to_sym
