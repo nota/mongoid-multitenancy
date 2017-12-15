@@ -1,14 +1,15 @@
 source 'https://rubygems.org'
 
-gem 'mongoid', '~> 5.0'
+gem 'mongoid', '~> 6.0'
 
-gem 'rake', '~> 10.0'
+gem 'rake'
 
 group :test do
+  gem 'database_cleaner'
   gem 'coveralls', require: false
   gem 'rspec', '~> 3.1'
-  gem 'yard', '~> 0.8'
-  gem 'mongoid-rspec', '~> 3.0'
+  gem 'yard'
+  gem 'mongoid-rspec', git: 'https://github.com/mongoid-rspec/mongoid-rspec.git'
   gem 'rubocop', require: false
 end
 

@@ -1,7 +1,6 @@
 require 'spec_helper'
 
 describe Optional do
-
   let(:client) do
     Account.create!(name: 'client')
   end
@@ -25,13 +24,13 @@ describe Optional do
 
       context 'when persisted' do
         before do
-          item.client = nil
+          item.tenant = nil
           item.save!
         end
 
         it 'does not override the client' do
           item.reload
-          expect(Optional.last.client).to be_nil
+          expect(Optional.last.tenant).to be_nil
         end
       end
     end

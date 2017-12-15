@@ -2,6 +2,7 @@ MODELS = File.join(File.dirname(__FILE__), 'models')
 
 require 'simplecov'
 require 'coveralls'
+require 'database_cleaner'
 
 SimpleCov.formatter = SimpleCov::Formatter::MultiFormatter[
   SimpleCov::Formatter::HTMLFormatter,
@@ -21,7 +22,6 @@ elsif Mongoid::VERSION.start_with? '4'
 end
 
 require_relative 'support/shared_examples'
-require_relative 'support/database_cleaner'
 require_relative 'support/mongoid_matchers'
 
 Dir["#{MODELS}/*.rb"].each { |f| require f }
@@ -30,7 +30,8 @@ Mongoid.configure do |config|
   config.connect_to 'mongoid_multitenancy'
 end
 
-Mongoid.logger = nil
+Mongoid.logger.level = Logger::INFO
+Mongo::Logger.logger.level = Logger::INFO
 
 RSpec.configure do |config|
   config.include Mongoid::Matchers

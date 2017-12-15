@@ -21,8 +21,17 @@ describe Mongoid::Multitenancy do
     end
 
     it 'restores the current tenant after the block' do
-      Mongoid::Multitenancy.with_tenant(another_client) do ; end
+      Mongoid::Multitenancy.with_tenant(another_client) { ; }
       expect(Mongoid::Multitenancy.current_tenant).to eq client
+    end
+
+    context 'when the block fails' do
+      it 'restores the current tenant' do
+        begin
+          Mongoid::Multitenancy.with_tenant(another_client) { raise StandardError }
+        rescue StandardError; end
+        expect(Mongoid::Multitenancy.current_tenant).to eq client
+      end
     end
   end
 end

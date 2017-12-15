@@ -1,4 +1,4 @@
-# mongoid-multitenancy [![Build Status](https://travis-ci.org/PerfectMemory/mongoid-multitenancy.png?branch=master)](https://travis-ci.org/PerfectMemory/mongoid-multitenancy) [![Coverage Status](https://coveralls.io/repos/PerfectMemory/mongoid-multitenancy/badge.svg?branch=master&service=github)](https://coveralls.io/github/PerfectMemory/mongoid-multitenancy?branch=master) [![Code Climate](https://codeclimate.com/github/PerfectMemory/mongoid-multitenancy.png)](https://codeclimate.com/github/PerfectMemory/mongoid-multitenancy) [![Dependency Status](https://gemnasium.com/PerfectMemory/mongoid-multitenancy.png)](https://gemnasium.com/PerfectMemory/mongoid-multitenancy)
+# mongoid-multitenancy [![Build Status](https://api.travis-ci.org/PerfectMemory/mongoid-multitenancy.png?branch=master)](https://travis-ci.org/PerfectMemory/mongoid-multitenancy) [![Coverage Status](https://coveralls.io/repos/PerfectMemory/mongoid-multitenancy/badge.svg?branch=master&service=github)](https://coveralls.io/github/PerfectMemory/mongoid-multitenancy?branch=master) [![Code Climate](https://codeclimate.com/github/PerfectMemory/mongoid-multitenancy.png)](https://codeclimate.com/github/PerfectMemory/mongoid-multitenancy) [![Dependency Status](https://gemnasium.com/PerfectMemory/mongoid-multitenancy.png)](https://gemnasium.com/PerfectMemory/mongoid-multitenancy)
 
 mongoid-multitenancy adds the ability to scope [Mongoid](https://github.com/mongoid/mongoid) models to a tenant in a **shared database strategy**. Tenants are represented by a tenant model, such as `Client`. mongoid-multitenancy will help you set the current tenant on each request and ensures that all 'tenant models' are always properly scoped to the current tenant: when viewing, searching and creating.
 
@@ -12,12 +12,17 @@ In addition, mongoid-multitenancy:
 * is thread safe
 * redefines some mongoid functions like `index`, `validates_with` and `delete_all` to take in account the multitenancy.
 
+Compatibility
+===============
+
+mongoid-multitenancy 2.0 is only compatible with mongoid 6. For mongoid 4 & 5 compatiblity, use mongoid-multitenancy 1.2.
+
 Installation
 ===============
 
 Add this line to your application's Gemfile:
 
-    gem 'mongoid-multitenancy'
+    gem 'mongoid-multitenancy', '~> 2.0'
 
 And then execute:
 
@@ -74,7 +79,7 @@ class Article
   include Mongoid::Document
   include Mongoid::Multitenancy::Document
 
-  tenant(:client)
+  tenant(:tenant)
 
   field :title, :type => String
 end
@@ -85,10 +90,14 @@ The association passed to the `tenant` function must be valid.
 
 `tenant` accepts several options:
 
- * :optional : set to true when the tenant is optional (default value is `false`)
- * :immutable : set to true when the tenant field is immutable (default value is `true`)
- * :full_indexes : set to true to add the tenant field automatically to all the indexes (default value is `true`)
- * :class_name, etc. : all the other options will be passed to the mongoid relation (belongs_to)
+| Option  | Default | Description |
+| ------------- | ------------- | ------------- |
+| :optional  | false  | set to true when the tenant is optional |
+| :immutable  | true  | set to true when the tenant field is immutable |
+| :full_indexes  | true  | set to true to add the tenant field automatically to all the indexes |
+| :index  | false  | set to true to define an index for the tenant field |
+| :scopes  | true  | set to true to define scopes :shared and :unshared |
+| :class_name, etc. |   | all the other options will be passed to the mongoid relation (belongs_to) |
 
 Some examples to illustrate this behavior:
 
@@ -97,15 +106,15 @@ Some examples to illustrate this behavior:
 Mongoid::Multitenancy.current_tenant = Client.find_by(:name => 'Perfect Memory') # => <#Client _id:50ca04b86c82bfc125000025, :name: "Perfect Memory">
 
  # All searches are scoped by the tenant, the following searches will only return objects belonging to the current client.
-Article.all # => all articles where client_id => 50ca04b86c82bfc125000025
+Article.all # => all articles where tenant_id => 50ca04b86c82bfc125000025
 
  # New objects are scoped to the current tenant
 article = Article.new(:title => 'New blog')
-article.save # => <#Article _id: 50ca04b86c82bfc125000044, title: 'New blog', client_id: 50ca04b86c82bfc125000025>
+article.save # => <#Article _id: 50ca04b86c82bfc125000044, title: 'New blog', tenant_id: 50ca04b86c82bfc125000025>
 
  # It can make the tenant field immutable once it is persisted to avoid inconsistency
 article.persisted? # => true
-article.client = another_client
+article.tenant = another_client
 article.valid? # => false
 ```
 
@@ -120,21 +129,21 @@ class Article
   include Mongoid::Document
   include Mongoid::Multitenancy::Document
 
-  tenant(:client, optional: true)
+  tenant(:tenant, optional: true)
 
   field :title, :type => String
 end
 
 Mongoid::Multitenancy.with_tenant(client_instance) do
-  Article.all # => all articles where client_id.in [50ca04b86c82bfc125000025, nil]
+  Article.all # => all articles where tenant_id.in [50ca04b86c82bfc125000025, nil]
   article = Article.new(:title => 'New article')
-  article.save # => <#Article _id: 50ca04b86c82bfc125000044, title: 'New blog', client_id: 50ca04b86c82bfc125000025>
+  article.save # => <#Article _id: 50ca04b86c82bfc125000044, title: 'New blog', tenant_id: 50ca04b86c82bfc125000025>
 
   # tenant needs to be set manually to nil
-  article = Article.new(:title => 'New article', :client => nil)
-  article.save # => <#Article _id: 50ca04b86c82bfc125000044, title: 'New blog', client_id: 50ca04b86c82bfc125000025>
+  article = Article.new(:title => 'New article', :tenant => nil)
+  article.save # => <#Article _id: 50ca04b86c82bfc125000044, title: 'New blog', tenant_id: 50ca04b86c82bfc125000025>
   article.tenant = nil
-  article.save => <#Article _id: 50ca04b86c82bfc125000044, title: 'New blog', client_id: nil>
+  article.save => <#Article _id: 50ca04b86c82bfc125000044, title: 'New blog', tenant_id: nil>
 end
 ```
 
@@ -173,7 +182,7 @@ class Article
   include Mongoid::Document
   include Mongoid::Multitenancy::Document
 
-  tenant :client
+  tenant :tenant
 
   field :slug
 
@@ -181,23 +190,39 @@ class Article
 end
 ```
 
-* When used with an *optional* tenant, the uniqueness constraint is not scoped if the item is shared, but is
-  scoped to the client new item otherwise. Note that a private item cannot have the the value if a shared item
-  already uses it.
+* When used with an *optional* tenant, the uniqueness constraint by default is not scoped if the item is shared, but is
+  scoped to the client new item otherwise. Note that by default in that case a private item cannot have a value if a shared item
+  already uses it. You can change that behaviour by setting the option `exclude_shared` to `true`.
 
 In the following case, 2 private articles can have the same slug if they belongs to 2 different clients. But if a shared
-article has the slug "slugA", no client will be able to use that slug again, like a standard validates_uniqueness_of does.
+article has the slug "slugA", no client will be able to use that slug again, like a standard `validates_uniqueness_of` does.
 
 ```ruby
 class Article
   include Mongoid::Document
   include Mongoid::Multitenancy::Document
 
-  tenant :client, optional: true
+  tenant :tenant, optional: true
 
   field :slug
 
   validates_tenant_uniqueness_of :slug
+end
+```
+
+In the following case, 2 private articles can have the same slug if they belongs to 2 different clients even if a shared
+article already uses that same slug, like a `validates_uniqueness_of scope: :tenant` does.
+
+```ruby
+class Article
+  include Mongoid::Document
+  include Mongoid::Multitenancy::Document
+
+  tenant :tenant, optional: true
+
+  field :slug
+
+  validates_tenant_uniqueness_of :slug, exclude_shared: true
 end
 ```
 
@@ -210,14 +235,14 @@ To create a single index on the tenant field, you can use the option `index: tru
 
 On the example below, only one indexe will be created:
 
-* { 'title_id' => 1, 'client_id' => 1 }
+* { 'title_id' => 1, 'tenant_id' => 1 }
 
 ```ruby
 class Article
   include Mongoid::Document
   include Mongoid::Multitenancy::Document
 
-  tenant :client, full_indexes: true
+  tenant :tenant, full_indexes: true
 
   field :title
 
@@ -227,7 +252,7 @@ end
 
 On the example below, 2 indexes will be created:
 
-* { 'client_id' => 1 }
+* { 'tenant_id' => 1 }
 * { 'title_id' => 1 }
 
 ```ruby
@@ -235,7 +260,7 @@ class Article
   include Mongoid::Document
   include Mongoid::Multitenancy::Document
 
-  tenant :client, index: true
+  tenant :tenant, index: true
 
   field :title
 
