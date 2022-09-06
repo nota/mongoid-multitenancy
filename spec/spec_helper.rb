@@ -2,7 +2,7 @@ MODELS = File.join(File.dirname(__FILE__), 'models')
 
 require 'simplecov'
 require 'coveralls'
-require 'database_cleaner'
+require 'database_cleaner-mongoid'
 
 SimpleCov.formatter = SimpleCov::Formatter::MultiFormatter[
   SimpleCov::Formatter::HTMLFormatter,
@@ -14,12 +14,6 @@ require 'rspec'
 require 'mongoid'
 require 'mongoid-multitenancy'
 require 'mongoid-rspec'
-
-if Mongoid::VERSION.start_with? '5'
-  Mongo::Logger.logger.level = ::Logger::FATAL
-elsif Mongoid::VERSION.start_with? '4'
-  Moped.logger = nil
-end
 
 require_relative 'support/shared_examples'
 require_relative 'support/mongoid_matchers'

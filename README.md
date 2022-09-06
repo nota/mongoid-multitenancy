@@ -1,4 +1,4 @@
-# mongoid-multitenancy [![Build Status](https://api.travis-ci.org/PerfectMemory/mongoid-multitenancy.png?branch=master)](https://travis-ci.org/PerfectMemory/mongoid-multitenancy) [![Coverage Status](https://coveralls.io/repos/PerfectMemory/mongoid-multitenancy/badge.svg?branch=master&service=github)](https://coveralls.io/github/PerfectMemory/mongoid-multitenancy?branch=master) [![Code Climate](https://codeclimate.com/github/PerfectMemory/mongoid-multitenancy.png)](https://codeclimate.com/github/PerfectMemory/mongoid-multitenancy) [![Dependency Status](https://gemnasium.com/PerfectMemory/mongoid-multitenancy.png)](https://gemnasium.com/PerfectMemory/mongoid-multitenancy)
+# mongoid-multitenancy [![Build Status](https://api.travis-ci.org/PerfectMemory/mongoid-multitenancy.png?branch=master)](https://travis-ci.org/PerfectMemory/mongoid-multitenancy) [![Coverage Status](https://coveralls.io/repos/github/PerfectMemory/mongoid-multitenancy/badge.svg?branch=master)](https://coveralls.io/github/PerfectMemory/mongoid-multitenancy?branch=master) [![Code Climate](https://codeclimate.com/github/PerfectMemory/mongoid-multitenancy.png)](https://codeclimate.com/github/PerfectMemory/mongoid-multitenancy)
 
 mongoid-multitenancy adds the ability to scope [Mongoid](https://github.com/mongoid/mongoid) models to a tenant in a **shared database strategy**. Tenants are represented by a tenant model, such as `Client`. mongoid-multitenancy will help you set the current tenant on each request and ensures that all 'tenant models' are always properly scoped to the current tenant: when viewing, searching and creating.
 
@@ -15,7 +15,7 @@ In addition, mongoid-multitenancy:
 Compatibility
 ===============
 
-mongoid-multitenancy 2.0 is only compatible with mongoid 6. For mongoid 4 & 5 compatiblity, use mongoid-multitenancy 1.2.
+mongoid-multitenancy 2.0 is compatible with mongoid 6/7. For mongoid 4/5 compatiblity, use mongoid-multitenancy 1.2.
 
 Installation
 ===============
@@ -229,13 +229,13 @@ end
 Mongoid indexes
 -------------------
 
-mongoid-multitenancy automatically adds the tenant foreign key in all your mongoid indexes to avoid to redefine all your validators. If you prefer to define manually the indexes, you can use the option `full_indexes: false`.
+mongoid-multitenancy automatically adds the tenant foreign key in all your mongoid indexes to avoid to redefine all your validators. If you prefer to define the indexes manually, you can use the option `full_indexes: false` on the tenant or `full_index: true/false` on the indexes.
 
 To create a single index on the tenant field, you can use the option `index: true` like any `belongs_to` declaration (false by default)
 
-On the example below, only one indexe will be created:
+On the example below, only one index will be created:
 
-* { 'title_id' => 1, 'tenant_id' => 1 }
+* { 'tenant_id' => 1, 'title' => 1 }
 
 ```ruby
 class Article
@@ -250,10 +250,11 @@ class Article
 end
 ```
 
-On the example below, 2 indexes will be created:
+On the example below, 3 indexes will be created:
 
 * { 'tenant_id' => 1 }
-* { 'title_id' => 1 }
+* { 'tenant_id' => 1, 'title' => 1 }
+* { 'name' => 1 }
 
 ```ruby
 class Article
@@ -263,8 +264,10 @@ class Article
   tenant :tenant, index: true
 
   field :title
+  field :name
 
   index({ :title => 1 })
+  index({ :name => 1 }, { full_index: false })
 end
 ```
 
