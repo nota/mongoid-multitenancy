@@ -148,9 +148,6 @@ module Mongoid
         def define_scopes
           # Set the default_scope to scope to current tenant
           default_scope lambda {
-            if Multitenancy.only_tenant?
-              return where({ tenant_field.to_sym.exists => false })
-            end
             if Multitenancy.current_tenant
               tenant_id = Multitenancy.current_tenant.id
               if tenant_options[:optional]
@@ -159,7 +156,11 @@ module Mongoid
                 where(tenant_field => tenant_id)
               end
             else
-              all
+              if Multitenancy.only_tenant?
+                where({ tenant_field.to_sym.exists => false })
+              else
+                all
+              end
             end
           }
 
