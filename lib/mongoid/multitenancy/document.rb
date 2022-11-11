@@ -41,7 +41,7 @@ module Mongoid
           self.tenant_options = multitenant_options
 
           # Validates the tenant field
-          validates_tenancy_of tenant_field, multitenant_options.merge(if: lambda { !(Multitenancy.current_tenant.nil? || Multitenancy.current_tenant == Multitenancy::NOT_EXIST) })
+          validates_tenancy_of tenant_field, multitenant_options.merge(if: lambda { Multitenancy.current_tenant })
 
           define_scopes if multitenant_options[:scopes]
           define_initializer association
@@ -148,10 +148,10 @@ module Mongoid
         def define_scopes
           # Set the default_scope to scope to current tenant
           default_scope lambda {
+            if Multitenancy.only_tenant?
+              return where({ tenant_field.to_sym.exists => false })
+            end
             if Multitenancy.current_tenant
-              if Multitenancy.current_tenant == Multitenancy::NOT_EXIST
-                return where({ tenant_field.to_sym.exists => false })
-              end
               tenant_id = Multitenancy.current_tenant.id
               if tenant_options[:optional]
                 where(tenant_field.in => [tenant_id, nil])
