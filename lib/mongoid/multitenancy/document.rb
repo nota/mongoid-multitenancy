@@ -8,7 +8,6 @@ module Mongoid
 
         # List of authorized options
         MULTITENANCY_OPTIONS = [:optional, :immutable, :full_indexes, :index, :scopes].freeze
-        NOT_EXIST = :not_exist
 
         # Defines the tenant field for the document.
         #
@@ -42,7 +41,7 @@ module Mongoid
           self.tenant_options = multitenant_options
 
           # Validates the tenant field
-          validates_tenancy_of tenant_field, multitenant_options.merge(if: lambda { !(Multitenancy.current_tenant.nil? || Multitenancy.current_tenant == NOT_EXIST) })
+          validates_tenancy_of tenant_field, multitenant_options.merge(if: lambda { !(Multitenancy.current_tenant.nil? || Multitenancy.current_tenant == Multitenancy::NOT_EXIST) })
 
           define_scopes if multitenant_options[:scopes]
           define_initializer association
@@ -150,7 +149,7 @@ module Mongoid
           # Set the default_scope to scope to current tenant
           default_scope lambda {
             if Multitenancy.current_tenant
-              if Multitenancy.current_tenant == NOT_EXIST
+              if Multitenancy.current_tenant == Multitenancy::NOT_EXIST
                 return where({ tenant_field.to_sym.exists => false })
               end
               tenant_id = Multitenancy.current_tenant.id

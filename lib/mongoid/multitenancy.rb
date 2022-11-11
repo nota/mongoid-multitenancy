@@ -6,6 +6,8 @@ require 'mongoid/multitenancy/validators/tenant_uniqueness'
 
 module Mongoid
   module Multitenancy
+    NOT_EXIST = :not_exist
+
     class << self
       # Set the current tenant. Make it Thread aware
       def current_tenant=(tenant)
