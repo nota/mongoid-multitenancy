@@ -36,6 +36,13 @@ module Mongoid
           ensure
             only_tenant! only: false
           end
+        elsif tenant == :unscoped
+          begin
+            only_tenant! only: false
+            yield
+          ensure
+            only_tenant!
+          end
         else
           begin
             old_tenant = current_tenant
