@@ -1,15 +1,14 @@
-class OptionalExclude
+class ConditionalUniqueness
   include Mongoid::Document
   include Mongoid::Multitenancy::Document
 
   tenant(:tenant, class_name: 'Account', optional: true)
 
   field :slug, type: String
-  field :title, type: String
+  field :approved, type: Boolean, default: false
 
-  validates_tenant_uniqueness_of :slug, exclude_shared: true, conditions: -> { ne(title: nil) }
+  validates_tenant_uniqueness_of :slug, conditions: -> { where(approved: true) }
   validates_presence_of :slug
-  validates_presence_of :title
 
   index(title: 1)
 end

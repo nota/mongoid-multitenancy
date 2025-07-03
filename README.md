@@ -15,7 +15,7 @@ In addition, mongoid-multitenancy:
 Compatibility
 ===============
 
-mongoid-multitenancy 2.0 is compatible with mongoid 6/7. For mongoid 4/5 compatiblity, use mongoid-multitenancy 1.2.
+mongoid-multitenancy 2 is compatible with mongoid 6/7/8/9. For mongoid 4/5 compatiblity, use mongoid-multitenancy 1.2.
 
 Installation
 ===============
@@ -223,6 +223,22 @@ class Article
   field :slug
 
   validates_tenant_uniqueness_of :slug, exclude_shared: true
+end
+```
+
+TenantUniqueness validator also allow to specify additional `conditions` to limit the uniqueness of the constraint.
+
+```ruby
+class Article
+  include Mongoid::Document
+  include Mongoid::Multitenancy::Document
+
+  tenant :tenant, optional: true
+
+  field :title
+  field :slug
+
+  validates_tenant_uniqueness_of :slug, exclude_shared: true, conditions: -> { ne(title: nil) }
 end
 ```
 
